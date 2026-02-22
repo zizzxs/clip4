@@ -105,6 +105,7 @@ app.post('/api/fetch-video', async (req, res) => {
             await youtubedl(url, {
                 output: outputPath,
                 format: 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+                mergeOutputFormat: 'mp4',
                 noCheckCertificates: true,
                 noWarnings: true,
                 preferFreeFormats: true,
