@@ -1,6 +1,6 @@
 import express from 'express';
 import cors from 'cors';
-import ytdl from '@distube/ytdl-core';
+import youtubedl from 'youtube-dl-exec';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -31,14 +31,24 @@ if (!fs.existsSync(uploadsDir)) {
 app.post('/api/fetch-video', async (req, res) => {
     const { url } = req.body;
 
-    if (!url || !ytdl.validateURL(url)) {
-        return res.status(400).json({ error: 'Invalid YouTube URL provided.' });
+    if (!url || !url.startsWith('http')) {
+        return res.status(400).json({ error: 'Invalid URL provided.' });
     }
 
     try {
-        const info = await ytdl.getInfo(url);
-        const videoTitle = info.videoDetails.title.replace(/[^\w\s]/gi, '').split(' ').join('_'); // Clean filename
-        const videoId = info.videoDetails.videoId;
+        const info = await youtubedl(url, {
+            dumpSingleJson: true,
+            noCheckCertificates: true,
+            noWarnings: true,
+            preferFreeFormats: true,
+            addHeader: [
+                'referer:youtube.com',
+                'user-agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.0.0 Safari/537.36'
+            ]
+        });
+
+        const videoTitle = info.title.replace(/[^\w\s]/gi, '').split(' ').join('_'); // Clean filename
+        const videoId = info.id;
         const filename = `${videoId}_${videoTitle}.mp4`;
         const clipFilename = `clip_${filename}`;
 
@@ -52,13 +62,13 @@ app.post('/api/fetch-video', async (req, res) => {
                 success: true,
                 message: 'Video already cached',
                 videoUrl: `/uploads/${clipFilename}`,
-                title: info.videoDetails.title + " (Highlight)",
+                title: info.title + " (Highlight)",
                 duration: 30, // Default cut duration
-                thumbnail: info.videoDetails.thumbnails[info.videoDetails.thumbnails.length - 1].url
+                thumbnail: info.thumbnail
             });
         }
 
-        console.log(`Starting download for: ${info.videoDetails.title}`);
+        console.log(`Starting download for: ${info.title}`);
 
         // If we have the source but not the clip
         const processClip = () => {
@@ -76,9 +86,9 @@ app.post('/api/fetch-video', async (req, res) => {
                         success: true,
                         message: 'Download and Processing complete',
                         videoUrl: `/uploads/${clipFilename}`, // Return the 9:16 CLIP
-                        title: info.videoDetails.title + " (Highlight)",
+                        title: info.title + " (Highlight)",
                         duration: 30,
-                        thumbnail: info.videoDetails.thumbnails[info.videoDetails.thumbnails.length - 1].url
+                        thumbnail: info.thumbnail
                     });
                 })
                 .on('error', (err) => {
@@ -92,26 +102,26 @@ app.post('/api/fetch-video', async (req, res) => {
             processClip();
         } else {
             // Need to download from YT first
-            const videoStream = ytdl(url, { quality: 'highest' });
-            const writeStream = fs.createWriteStream(outputPath);
-
-            videoStream.pipe(writeStream);
-
-            writeStream.on('finish', () => {
-                console.log(`Download complete: ${filename}`);
-                // Now process it into a vertical highlight clip
-                processClip();
+            await youtubedl(url, {
+                output: outputPath,
+                format: 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+                noCheckCertificates: true,
+                noWarnings: true,
+                preferFreeFormats: true,
+                addHeader: [
+                    'referer:youtube.com',
+                    'user-agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.0.0 Safari/537.36'
+                ]
             });
 
-            writeStream.on('error', (err) => {
-                console.error('File write error', err);
-                res.status(500).json({ error: 'Error saving video file.' });
-            });
+            console.log(`Download complete: ${filename}`);
+            // Now process it into a vertical highlight clip
+            processClip();
         }
 
     } catch (error) {
-        console.error('ytdl error:', error);
-        res.status(500).json({ error: `ytdl error: ${error.message}` });
+        console.error('youtube-dl error:', error);
+        res.status(500).json({ error: `youtube-dl error: ${error.message}` });
     }
 });
 
