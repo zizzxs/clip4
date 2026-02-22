@@ -41,6 +41,7 @@ app.post('/api/fetch-video', async (req, res) => {
             noCheckCertificates: true,
             noWarnings: true,
             preferFreeFormats: true,
+            ffmpegLocation: ffmpegInstaller.path,
             addHeader: [
                 'referer:youtube.com',
                 'user-agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.0.0 Safari/537.36'
@@ -106,6 +107,7 @@ app.post('/api/fetch-video', async (req, res) => {
                 output: outputPath,
                 format: 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
                 mergeOutputFormat: 'mp4',
+                ffmpegLocation: ffmpegInstaller.path,
                 noCheckCertificates: true,
                 noWarnings: true,
                 preferFreeFormats: true,
